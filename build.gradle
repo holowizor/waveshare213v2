@@ -1,26 +1,38 @@
-plugins {
-    id 'org.jetbrains.kotlin.jvm' version '1.3.61'
+buildscript {
+    repositories {
+        jcenter()
+    }
+
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
 }
 
+apply plugin: 'kotlin'
 apply plugin: 'maven-publish'
 
 group 'com.devbuild'
-version '1.0-SNAPSHOT'
+version '0.0.1'
+
+sourceCompatibility = 1.8
+compileKotlin { kotlinOptions.jvmTarget = "1.8" }
+compileTestKotlin { kotlinOptions.jvmTarget = "1.8" }
+
+sourceSets {
+    main.kotlin.srcDirs = main.java.srcDirs = ['src']
+    test.kotlin.srcDirs = test.java.srcDirs = ['test']
+    main.resources.srcDirs = ['resources']
+    test.resources.srcDirs = ['testresources']
+}
 
 repositories {
-    mavenCentral()
+    mavenLocal()
+    jcenter()
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     compile 'com.pi4j:pi4j-core:1.2'
-}
-
-compileKotlin {
-    kotlinOptions.jvmTarget = "1.8"
-}
-compileTestKotlin {
-    kotlinOptions.jvmTarget = "1.8"
 }
 
 publishing {
