@@ -4,6 +4,7 @@ import com.pi4j.io.gpio.*
 import com.pi4j.io.spi.SpiChannel
 import com.pi4j.io.spi.SpiDevice
 import com.pi4j.io.spi.SpiFactory
+import java.awt.image.BufferedImage
 
 object Waveshare213v2 {
 
@@ -19,13 +20,13 @@ object Waveshare213v2 {
     private val cs: GpioPinDigitalOutput
     private val busy: GpioPinDigitalInput
 
-    private val height: Int = 250
-    private val width: Int = 122
-    private val linewidth: Int = calculateLineWidth(width)
+    val height: Int = 250
+    val width: Int = 122
+    val linewidth: Int = calculateLineWidth(width)
 
     private var fullDisplay = true
 
-    val lutFullUpdate: UByteArray = ubyteArrayOf(
+    private val lutFullUpdate: UByteArray = ubyteArrayOf(
         0x80u, 0x60u, 0x40u, 0x00u, 0x00u, 0x00u, 0x00u, //LUT0: BB:     VS 0 ~7
         0x10u, 0x60u, 0x20u, 0x00u, 0x00u, 0x00u, 0x00u, //LUT1: BW:     VS 0 ~7
         0x80u, 0x60u, 0x40u, 0x00u, 0x00u, 0x00u, 0x00u, //LUT2: WB:     VS 0 ~7
@@ -43,7 +44,7 @@ object Waveshare213v2 {
         0x15u, 0x41u, 0xA8u, 0x32u, 0x30u, 0x0Au
     )
 
-    val lutPartialUpdate: UByteArray = ubyteArrayOf(
+    private val lutPartialUpdate: UByteArray = ubyteArrayOf(
         0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, //LUT0: BB:     VS 0 ~7
         0x80u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, //LUT1: BW:     VS 0 ~7
         0x40u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, //LUT2: WB:     VS 0 ~7
@@ -103,7 +104,7 @@ object Waveshare213v2 {
         sendCommand(0x3Cu) // BorderWavefrom
         sendData(0x03u)
 
-        sendCommand(0x2Cu)     // VCOM Voltage
+        sendCommand(0x2Cu) // VCOM Voltage
         sendData(0x55u)
 
         sendCommand(0x03u)
@@ -197,7 +198,15 @@ object Waveshare213v2 {
         display()
     }
 
-    fun printImage(image: UByteArray) {
+    fun printImage(image: BufferedImage) {
+        if (image.width == this.width) {
+            printImage(toByteBuff(image))
+        } else {
+            printImage(toByteBuffH(image))
+        }
+    }
+
+    private fun printImage(image: UByteArray) {
         sendCommand(0x24u)
         for (j in 0 until height) {
             for (i in 0 until linewidth) {
@@ -206,6 +215,48 @@ object Waveshare213v2 {
         }
 
         display()
+    }
+
+    private fun toByteBuff(img: BufferedImage): UByteArray {
+        val imgWidth = if (this.width > img.width) img.width else this.width
+        val imgHeight = if (this.height > img.height) img.height else this.height
+
+        val buf = UByteArray(imgHeight * this.linewidth)
+        buf.fill(0xFFu, 0, buf.size)
+
+        for (y in 0 until imgHeight) {
+            for (x in 0 until imgWidth) {
+                if (img.getRGB(x, y).toUInt() == 0xff000000u) {
+                    val xx = imgWidth - x - 1
+                    buf[(xx / 8) + y * this.linewidth] =
+                        buf[(xx / 8) + y * this.linewidth] and (0x80u shr (xx % 8)).toUByte().inv()
+                }
+            }
+        }
+
+        return buf
+    }
+
+    private fun toByteBuffH(img: BufferedImage): UByteArray {
+        val imgWidth = if (this.height > img.width) img.width else this.height
+        val imgHeight = if (this.width > img.height) img.height else this.width
+
+        val buf = UByteArray(this.height * this.linewidth)
+        buf.fill(0xFFu, 0, buf.size)
+
+        for (y in 0 until imgHeight) {
+            for (x in 0 until imgWidth) {
+                val xx = y
+                val xy = this.height - x - 1
+                if (img.getRGB(x, y).toUInt() == 0xff000000u) {
+                    val xxy = imgWidth - xy - 1
+                    buf[(xx / 8) + xxy * this.linewidth] =
+                        buf[(xx / 8) + xxy * this.linewidth] and (0x80u shr (xx % 8)).toUByte().inv()
+                }
+            }
+        }
+
+        return buf
     }
 
     fun sleep() {
@@ -249,7 +300,5 @@ object Waveshare213v2 {
 
     private fun calculateLineWidth(width: Int) = if (width % 8 > 0) width / 8 + 1 else width / 8
 
-    private fun waitMs(waitMs: Long) {
-        Thread.sleep(waitMs)
-    }
+    private fun waitMs(waitMs: Long) = Thread.sleep(waitMs)
 }
